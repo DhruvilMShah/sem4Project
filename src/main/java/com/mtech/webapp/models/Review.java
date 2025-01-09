@@ -1,18 +1,20 @@
-package com.mtech.webapp;
+package com.mtech.webapp.models;
 
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-@Document(collection = "users")
+@Document(collection = "review")
 @Builder
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class Users {
+public class Review {
     @Id
-    private int userId;
-    private String name;
+    private String reviewId;
     private String email;
+    private int rating;
+    private String description;
+    private boolean anonymity;
 }
