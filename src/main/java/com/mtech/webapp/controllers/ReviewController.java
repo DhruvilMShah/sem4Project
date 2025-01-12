@@ -1,7 +1,6 @@
 package com.mtech.webapp.controllers;
 
-import com.mtech.webapp.models.Achievement;
-import com.mtech.webapp.models.Review;
+import com.mtech.webapp.models.*;
 import com.mtech.webapp.repositories.ReviewRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -17,27 +16,33 @@ public class ReviewController {
     private ReviewRepository reviewRepository;
 
     @PostMapping("/review")
-    public ResponseEntity<Review> postReview()
+    public ResponseEntity<Review> postReview(@RequestBody ReviewRequest reviewRequest)
     {
         Review review = new Review();
-        review.setAnonymity(false);
-        review.setDescription("this is a sample reveiw");
-        review.setRating(4);
-        review.setEmail("abc@asd.com");
+        review.setAnonymity(reviewRequest.isAnonymity());
+        review.setDescription(reviewRequest.getDescription());
+        review.setRating(reviewRequest.getRating());
+        review.setEmail(reviewRequest.getEmail());
         reviewRepository.save(review);
         return new ResponseEntity<>(review, HttpStatus.CREATED);
     }
 
     @PatchMapping("/review")
-    public ResponseEntity<Review> updateReview()
+    public ResponseEntity<Review> updateReview(@RequestBody ReviewUpdateRequest reviewRequest)
     {
-        return new ResponseEntity<>(new Review(), HttpStatus.CREATED);
+        Review review = reviewRepository.findByReviewId(reviewRequest.getReviewId());
+        review.setAnonymity(reviewRequest.isAnonymity());
+        review.setDescription(reviewRequest.getDescription());
+        review.setRating(reviewRequest.getRating());
+        reviewRepository.save(review);
+        return new ResponseEntity<>(review, HttpStatus.CREATED);
     }
 
     @DeleteMapping("/review")
-    public ResponseEntity<Review> deleteReview()
+    public ResponseEntity<Review> deleteReview(@RequestBody ReviewDeleteRequest reviewDeleteRequest)
     {
-        return new ResponseEntity<>(new Review(), HttpStatus.ACCEPTED);
+        int noOfEntriesDeleted = reviewRepository.deleteByReviewId(reviewDeleteRequest.getReviewId());
+        return new ResponseEntity<>(HttpStatus.ACCEPTED);
     }
 
     @GetMapping("/reviews")
