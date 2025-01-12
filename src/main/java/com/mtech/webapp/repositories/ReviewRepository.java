@@ -11,4 +11,6 @@ public interface ReviewRepository extends MongoRepository<Review,String> {
     Review findByReviewId(String reviewId);
 
     int deleteByReviewId(String reviewId);
+
+    List<Review> findByRating(int rating);
 }

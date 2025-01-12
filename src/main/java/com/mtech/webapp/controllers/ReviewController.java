@@ -51,4 +51,11 @@ public class ReviewController {
         List<Review> allReviews = reviewRepository.findAll();
         return new ResponseEntity<>(allReviews, HttpStatus.OK);
     }
+
+    @GetMapping("/reviews/rating/{ratingValue}")
+    public ResponseEntity<List<Review>> filterReviewsByRating(@PathVariable int ratingValue)
+    {
+        List<Review> allReviews = reviewRepository.findByRating(ratingValue);
+        return new ResponseEntity<>(allReviews, HttpStatus.OK);
+    }
 }
