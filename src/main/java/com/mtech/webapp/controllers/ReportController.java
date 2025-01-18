@@ -43,7 +43,7 @@ public class ReportController {
         return new ResponseEntity<>(HttpStatus.CREATED);
     }
 
-    @GetMapping("/reports/${userEmail}")
+    @GetMapping("/reports/{userEmail}")
     public ResponseEntity<List<Review>> getReports(@PathVariable String userEmail)
     {
         // TODO add impl
