@@ -8,6 +8,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 @RestController
@@ -18,6 +20,7 @@ public class ReviewController {
     @PostMapping("/review")
     public ResponseEntity<Review> postReview(@RequestBody ReviewRequest reviewRequest)
     {
+        System.out.println("Add review given by : "+ reviewRequest.getEmail());
         Review review = new Review();
         review.setAnonymity(reviewRequest.isAnonymity());
         review.setDescription(reviewRequest.getDescription());
@@ -48,7 +51,9 @@ public class ReviewController {
     @GetMapping("/reviews")
     public ResponseEntity<List<Review>> getReviews()
     {
+        System.out.println("Getting all reviews : ");
         List<Review> allReviews = reviewRepository.findAll();
+        Collections.reverse(allReviews);
         return new ResponseEntity<>(allReviews, HttpStatus.OK);
     }
 

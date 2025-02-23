@@ -9,8 +9,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 public class AchievementController {
@@ -20,6 +24,7 @@ public class AchievementController {
     @PostMapping("/achievement")
     public ResponseEntity<Achievement> postAchievement(@RequestBody AchievementRequest achievementRequest)
     {
+        System.out.println("Adding achievement for : "+ achievementRequest.getEmail());
         Achievement achievement = new Achievement();
         achievement.setCategory(achievementRequest.getCategory());
         achievement.setEmail(achievementRequest.getEmail());
@@ -59,7 +64,9 @@ public class AchievementController {
     @GetMapping("/user/{userEmail}")
     public ResponseEntity<List<Achievement>> getAchievements(@PathVariable String userEmail)
     {
+        System.out.println("Getting achievements of : "+ userEmail);
         List<Achievement> allAchievementsOfUser = achievementRepository.findByEmail(userEmail);
+        allAchievementsOfUser.sort(Comparator.comparing(Achievement::getFromDate).reversed());
         return new ResponseEntity<>(allAchievementsOfUser, HttpStatus.OK);
     }
 
@@ -72,14 +79,20 @@ public class AchievementController {
     }
 
     // TODO fix logic
-    @GetMapping("/user/{userEmail}/achievements/duration/{fromDate}/{toDate}")
+    @GetMapping("/user/{userEmail}/achievements/duration/{startDate}/{endDate}")
     public ResponseEntity<List<Achievement>> filterAchievementsBasedOnDuration(@PathVariable String userEmail,
-                                                                               @PathVariable String fromDate,
-                                                                               @PathVariable String toDate)
+                                                                               @PathVariable LocalDate startDate,
+                                                                               @PathVariable LocalDate endDate)
     {
-        List<Achievement> filteredByCategory = achievementRepository.findByEmailAndFromDateAndToDate(userEmail,
-                                                                                                    fromDate, toDate);
-        return new ResponseEntity<>(filteredByCategory, HttpStatus.OK);
+        List<Achievement> userAchievements = achievementRepository.findByEmail(userEmail);
+        List<Achievement> achievementsBetweenDuration = userAchievements.stream()
+                .filter(achievement -> isBetween(achievement.getFromDate(), startDate, endDate))
+                .toList();
+        return new ResponseEntity<>(achievementsBetweenDuration, HttpStatus.OK);
+    }
+
+    private boolean isBetween(LocalDate fromDate, LocalDate startDate, LocalDate endDate) {
+        return (fromDate.isEqual(startDate) || fromDate.isAfter(startDate)) && (fromDate.isEqual(endDate) || fromDate.isBefore(endDate));
     }
 
 }
