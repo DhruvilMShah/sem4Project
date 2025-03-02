@@ -14,7 +14,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 public class AchievementController {
@@ -78,7 +77,6 @@ public class AchievementController {
         return new ResponseEntity<>(filteredByCategory, HttpStatus.OK);
     }
 
-    // TODO fix logic
     @GetMapping("/user/{userEmail}/achievements/duration/{startDate}/{endDate}")
     public ResponseEntity<List<Achievement>> filterAchievementsBasedOnDuration(@PathVariable String userEmail,
                                                                                @PathVariable LocalDate startDate,
