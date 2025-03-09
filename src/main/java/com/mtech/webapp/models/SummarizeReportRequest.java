@@ -10,7 +10,7 @@ import java.util.List;
 @NoArgsConstructor
 public class SummarizeReportRequest {
     private String emailId;
-    private List<Achievement> achievements;
+    private List<String> achievementDesc;
     private String callBackUrl;
     private String type;
 }

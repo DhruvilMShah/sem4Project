@@ -39,8 +39,9 @@ public class ReportController {
         System.out.println("Creating report for " + userEmail + " of achievements between " + reportRequest.getFromDate()
                 + " and " + reportRequest.getToDate() + " for framework: " + reportRequest.getFormat());
         List<Achievement> userAchievements = achievementRepository.findByEmail(userEmail);
-        List<Achievement> achievementsBetweenDuration = userAchievements.stream()
+        List<String> achievementsBetweenDuration = userAchievements.stream()
                 .filter(achievement -> isBetween(achievement.getFromDate(), reportRequest.getFromDate(), reportRequest.getToDate()))
+                .map(Achievement::getDescription)
                 .toList();
         String pythonApiUrl = "http://localhost:5000/achievements/summarize";
 
@@ -49,7 +50,7 @@ public class ReportController {
         request.setCallBackUrl("http://localhost:8081/reportFormat/"+reportRequest.getFormat());
         request.setType(reportRequest.getFormat());
         request.setEmailId(userEmail);
-        request.setAchievements(achievementsBetweenDuration);
+        request.setAchievementDesc(achievementsBetweenDuration);
 
         restTemplate.postForEntity(pythonApiUrl, request, String.class);
 
