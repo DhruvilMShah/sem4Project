@@ -1,5 +1,6 @@
 package com.mtech.webapp.models;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
 @Builder
@@ -8,7 +9,12 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 public class AchievementRating {
+    @JsonProperty("Achievement")
     private String achievement;
+
+    @JsonProperty("Category")
     private String category;
-    private int rating;
+
+    @JsonProperty("Rating")
+    private String rating;
 }

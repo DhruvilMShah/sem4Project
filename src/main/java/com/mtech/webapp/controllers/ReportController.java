@@ -103,9 +103,9 @@ public class ReportController {
 
         // Add achievements to table
         for (JsonNode achievement : achievements) {
-            table.addCell(achievement.get("achievement").asText());
-            table.addCell(achievement.get("category").asText());
-            table.addCell(String.valueOf(achievement.get("rating").asInt()));
+            table.addCell(achievement.get("Achievement").asText());
+            table.addCell(achievement.get("Category").asText());
+            table.addCell(String.valueOf(achievement.get("Rating").asInt()));
         }
 
         document.add(table);
