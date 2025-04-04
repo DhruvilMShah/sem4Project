@@ -15,10 +15,20 @@ import org.springframework.web.client.RestTemplate;
 import com.itextpdf.kernel.pdf.*;
 import com.itextpdf.layout.Document;
 import com.itextpdf.layout.element.Paragraph;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -30,6 +40,7 @@ public class ReportController {
     @Autowired
     private ReportRepository reportRepository;
     private final RestTemplate restTemplate = new RestTemplate();
+    private final String REPORTS_DIR = "reports";
 
     @PostMapping("/report/{userEmail}")
     @Async
@@ -65,13 +76,14 @@ public class ReportController {
         Report report = new Report();
         String emailId = reportJSON.getEmail();
         LocalDateTime requestedTime = LocalDateTime.now();
-        String reportFilePath = emailId.replace("@", "_").replace(".", "_") + "-" +
-                                requestedTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")) + ".pdf";
+        String fileName = emailId.replace("@", "_").replace(".", "_") + "-" +
+                requestedTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")) + ".pdf";
+        String reportFilePath = REPORTS_DIR + "/" + fileName;
 
         report.setEmail(emailId);
         report.setStatus(ReportStatus.IN_PROGRESS);
         report.setRequestedDate(requestedTime);
-        report.setFilePath(reportFilePath);
+        report.setFilePath("http://localhost:8081/files/" + fileName);
         report = reportRepository.save(report);
 
 
@@ -122,9 +134,25 @@ public class ReportController {
     @GetMapping("/reports/{userEmail}")
     public ResponseEntity<List<Report>> getReports(@PathVariable String userEmail)
     {
-        List<Report> completedReports = reportRepository.findByEmailAndStatus(userEmail,ReportStatus.SUCCESSFUL);
-        return new ResponseEntity<>(completedReports, HttpStatus.OK);
+        List<Report> allReports = reportRepository.findByEmail(userEmail);
+        allReports.sort(Comparator.comparing(Report::getRequestedDate).reversed());
+        return new ResponseEntity<>(allReports, HttpStatus.OK);
     }
+
+    @GetMapping("/files/{filename}")
+    public ResponseEntity<Resource> serveFile(@PathVariable String filename) throws IOException {
+        Path filePath = Paths.get(REPORTS_DIR).resolve(filename).normalize();
+        Resource resource = new UrlResource(filePath.toUri());
+
+        if (!resource.exists()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(resource);
+    }
+
     private boolean isBetween(LocalDate fromDate, LocalDate startDate, LocalDate endDate) {
         return (fromDate.isEqual(startDate) || fromDate.isAfter(startDate)) && (fromDate.isEqual(endDate) || fromDate.isBefore(endDate));
     }

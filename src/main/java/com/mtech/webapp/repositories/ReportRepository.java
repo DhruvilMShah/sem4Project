@@ -8,5 +8,5 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import java.util.List;
 
 public interface ReportRepository extends MongoRepository<Report,String> {
-    List<Report> findByEmailAndStatus(String email, ReportStatus status);
+    List<Report> findByEmail(String email);
 }
