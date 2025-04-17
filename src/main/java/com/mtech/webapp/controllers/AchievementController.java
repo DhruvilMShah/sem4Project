@@ -44,7 +44,7 @@ public class AchievementController {
         // TODO add check only email logged in can update achievement of the email in achievement.
         existingAchievement.setLastUpdated(LocalDateTime.now());
         existingAchievement.setCategory(achievementRequest.getCategory());
-        existingAchievement.setLastUpdated(LocalDateTime.now());
+        existingAchievement.setToDate(achievementRequest.getToDate());
         existingAchievement.setFromDate(achievementRequest.getFromDate());
         existingAchievement.setDescription(achievementRequest.getDescription());
         existingAchievement.setEvidences(achievementRequest.getEvidences());
