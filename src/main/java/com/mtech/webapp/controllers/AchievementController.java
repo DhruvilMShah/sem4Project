@@ -1,5 +1,6 @@
 package com.mtech.webapp.controllers;
 
+import com.mtech.webapp.exceptions.ResourceNotFoundException;
 import com.mtech.webapp.models.*;
 import com.mtech.webapp.repositories.AchievementRepository;
 import io.swagger.v3.oas.annotations.Operation;
@@ -57,6 +58,7 @@ public class AchievementController {
         achievement.setFromDate(achievementRequest.getFromDate());
         achievement.setToDate(achievementRequest.getToDate());
         achievementRepository.save(achievement);
+        System.out.println("Successfully added achievement for : "+ achievementRequest.getEmail());
         return new ResponseEntity<>(achievement, HttpStatus.CREATED);
     }
 
@@ -83,6 +85,9 @@ public class AchievementController {
     public ResponseEntity<Achievement> updateAchievement(@RequestBody AchievementUpdateRequest achievementRequest)
     {
         Achievement existingAchievement = achievementRepository.findByAchievementId(achievementRequest.getAchievementId());
+        if (existingAchievement == null) {
+            throw new ResourceNotFoundException("No achievement exists for given achievement id: " + achievementRequest.getAchievementId());
+        }
         // TODO add check only email logged in can update achievement of the email in achievement.
         existingAchievement.setLastUpdated(LocalDateTime.now());
         existingAchievement.setCategory(achievementRequest.getCategory());
@@ -116,6 +121,7 @@ public class AchievementController {
     {
         System.out.println("Deleting achievement id: "+ achievementDeleteRequest.getAchievementId());
         int noOfAchievementsDeleted = achievementRepository.deleteByAchievementId(achievementDeleteRequest.getAchievementId());
+        System.out.println("Successfully deleted achievement id: "+ achievementDeleteRequest.getAchievementId());
         return new ResponseEntity<>(HttpStatus.ACCEPTED);
     }
 
@@ -131,6 +137,9 @@ public class AchievementController {
     {
         System.out.println("Getting achievements of : "+ userEmail);
         List<Achievement> allAchievementsOfUser = achievementRepository.findByEmail(userEmail);
+        if (allAchievementsOfUser == null) {
+            throw new ResourceNotFoundException("No achievement exists for given user email: " + userEmail);
+        }
         allAchievementsOfUser.sort(Comparator.comparing(Achievement::getFromDate).reversed());
         return new ResponseEntity<>(allAchievementsOfUser, HttpStatus.OK);
     }
@@ -147,6 +156,9 @@ public class AchievementController {
                                                                                @PathVariable @Parameter(example = "Technical") String categoryName)
     {
         List<Achievement> filteredByCategory = achievementRepository.findByEmailAndCategory(userEmail, categoryName);
+        if (filteredByCategory == null) {
+            throw new ResourceNotFoundException("No achievement exists for given user email " + userEmail + " and category: " + categoryName);
+        }
         return new ResponseEntity<>(filteredByCategory, HttpStatus.OK);
     }
 
@@ -163,6 +175,9 @@ public class AchievementController {
                                                                                @PathVariable @Parameter(example = "2024-07-31") LocalDate endDate)
     {
         List<Achievement> userAchievements = achievementRepository.findByEmail(userEmail);
+        if (userAchievements == null) {
+            throw new ResourceNotFoundException("No achievement exists for given user email " + userEmail);
+        }
         List<Achievement> achievementsBetweenDuration = userAchievements.stream()
                 .filter(achievement -> isBetween(achievement.getFromDate(), startDate, endDate))
                 .toList();

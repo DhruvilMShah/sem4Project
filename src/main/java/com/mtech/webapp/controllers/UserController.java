@@ -1,6 +1,5 @@
 package com.mtech.webapp.controllers;
 
-import com.mtech.webapp.models.User;
 import com.mtech.webapp.services.UserService;
 import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.web.bind.annotation.*;
@@ -11,7 +10,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/users")
@@ -30,8 +28,6 @@ public class UserController {
                     @ApiResponse(responseCode = "500", description = "Error occurred while Processing Request at the Server Side")
             })
     public List<String> getEmailSuggestions(@RequestParam @Parameter(example = "abc") String query) {
-        List<User> users = userService.findAll();
-        System.out.println("All Emails are: " + users.size());
         List<String> emailsMatching = userService.findEmailsByQuery(query);
         System.out.println("Emails matching are: " + emailsMatching);
         return emailsMatching;

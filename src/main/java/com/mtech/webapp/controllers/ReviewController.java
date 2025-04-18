@@ -1,5 +1,6 @@
 package com.mtech.webapp.controllers;
 
+import com.mtech.webapp.exceptions.ResourceNotFoundException;
 import com.mtech.webapp.models.*;
 import com.mtech.webapp.repositories.ReviewRepository;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,9 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 @RestController
@@ -44,13 +43,14 @@ public class ReviewController {
             })
     public ResponseEntity<Review> postReview(@RequestBody ReviewRequest reviewRequest)
     {
-        System.out.println("Add review given by : "+ reviewRequest.getEmail());
+        System.out.println("Adding new platform review");
         Review review = new Review();
         review.setAnonymity(reviewRequest.isAnonymity());
         review.setDescription(reviewRequest.getDescription());
         review.setRating(reviewRequest.getRating());
         review.setEmail(reviewRequest.getEmail());
         reviewRepository.save(review);
+        System.out.println("Successfully added platform review");
         return new ResponseEntity<>(review, HttpStatus.CREATED);
     }
 
@@ -75,6 +75,9 @@ public class ReviewController {
     public ResponseEntity<Review> updateReview(@RequestBody ReviewUpdateRequest reviewRequest)
     {
         Review review = reviewRepository.findByReviewId(reviewRequest.getReviewId());
+        if (review == null) {
+            throw new ResourceNotFoundException("Review not found with id: " + reviewRequest.getReviewId());
+        }
         review.setAnonymity(reviewRequest.isAnonymity());
         review.setDescription(reviewRequest.getDescription());
         review.setRating(reviewRequest.getRating());
@@ -116,7 +119,6 @@ public class ReviewController {
             })
     public ResponseEntity<List<Review>> getReviews()
     {
-        System.out.println("Getting all reviews : ");
         List<Review> allReviews = reviewRepository.findAll();
         Collections.reverse(allReviews);
         return new ResponseEntity<>(allReviews, HttpStatus.OK);

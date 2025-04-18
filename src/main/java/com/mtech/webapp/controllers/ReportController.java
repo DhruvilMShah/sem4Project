@@ -3,6 +3,7 @@ package com.mtech.webapp.controllers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itextpdf.layout.element.Table;
+import com.mtech.webapp.exceptions.ResourceNotFoundException;
 import com.mtech.webapp.models.*;
 import com.mtech.webapp.repositories.AchievementRepository;
 import com.mtech.webapp.repositories.ReportRepository;
@@ -18,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import com.itextpdf.kernel.pdf.*;
 import com.itextpdf.layout.Document;
@@ -72,9 +74,12 @@ public class ReportController {
     public CompletableFuture<ResponseEntity<String>>  createReportRequest(@RequestBody ReportRequest reportRequest,
                                                       @PathVariable @Parameter(example = "abc@gmail.com")  String userEmail)
     {
-        System.out.println("Creating report for " + userEmail + " of achievements between " + reportRequest.getFromDate()
+        System.out.println("Creating report request for " + userEmail + " of achievements between " + reportRequest.getFromDate()
                 + " and " + reportRequest.getToDate() + " for framework: " + reportRequest.getFormat());
         List<Achievement> userAchievements = achievementRepository.findByEmail(userEmail);
+        if (userAchievements == null) {
+            throw new ResourceNotFoundException("userAchievements not found with userEmail: " + userEmail);
+        }
         List<String> achievementsBetweenDuration = userAchievements.stream()
                 .filter(achievement -> isBetween(achievement.getFromDate(), reportRequest.getFromDate(), reportRequest.getToDate()))
                 .map(Achievement::getDescription)
@@ -88,10 +93,29 @@ public class ReportController {
         request.setEmailId(userEmail);
         request.setAchievementDesc(achievementsBetweenDuration);
 
-        restTemplate.postForEntity(pythonApiUrl, request, String.class);
-
-        // Return immediately with HTTP 202 Accepted
-        return CompletableFuture.completedFuture(ResponseEntity.accepted().body("Processing started"));
+        try {
+            // Attempt to send request to Python server
+            restTemplate.postForEntity(pythonApiUrl, request, String.class);
+            System.out.println("Creating report request for " + userEmail + " is accepted.");
+            // Return HTTP 202 Accepted if successful
+            return CompletableFuture.completedFuture(
+                    ResponseEntity.accepted().body("Processing started"));
+        } catch (RestClientException e) {
+            // Handle case where Python server is down or unreachable
+            System.err.println("Error communicating with Python server: " + e.getMessage());
+            System.out.println("Creating report request for " + userEmail + " is NOT accepted.");
+            // Return HTTP 503 Service Unavailable or another appropriate response
+            return CompletableFuture.completedFuture(
+                    ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                            .body("Python server is currently unavailable. Please try again later."));
+        } catch (Exception e) {
+            // Handle other unexpected errors
+            System.err.println("Unexpected error: " + e.getMessage());
+            System.out.println("Creating report request for " + userEmail + " is NOT accepted.");
+            return CompletableFuture.completedFuture(
+                    ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                            .body("An unexpected error occurred."));
+        }
     }
 
     @PostMapping("/reportFormat/{type}")
@@ -117,7 +141,6 @@ public class ReportController {
             })
     public ResponseEntity<Report> createPDFOfReport(@RequestBody ReportContent reportJSON,
                                                     @PathVariable String type) throws Exception {
-        // TODO update db with status - started
         Report report = new Report();
         String emailId = reportJSON.getEmail();
         LocalDateTime requestedTime = LocalDateTime.now();
@@ -130,8 +153,7 @@ public class ReportController {
         report.setRequestedDate(requestedTime);
         report.setFilePath("http://localhost:8081/files/" + fileName);
         report = reportRepository.save(report);
-
-
+        System.out.println("Creating report for " + reportJSON.getEmail());
 
         // Parse JSON
         ObjectMapper objectMapper = new ObjectMapper();
@@ -168,10 +190,10 @@ public class ReportController {
         document.add(table);
         document.close();
 
-        System.out.println("PDF Created: " + reportFilePath);
         report.setStatus(ReportStatus.SUCCESSFUL);
         report.setCompletedDate(LocalDateTime.now());
         reportRepository.save(report);
+        System.out.println("Successfully created report for " + emailId + " at: " + reportFilePath);
 
         return new ResponseEntity<>(HttpStatus.CREATED);
     }
@@ -187,6 +209,9 @@ public class ReportController {
     public ResponseEntity<List<Report>> getReports(@PathVariable @Parameter(example = "abc@gmail.com")  String userEmail)
     {
         List<Report> allReports = reportRepository.findByEmail(userEmail);
+        if (allReports == null) {
+            throw new ResourceNotFoundException("Reports not found for userEmail: " + userEmail);
+        }
         allReports.sort(Comparator.comparing(Report::getRequestedDate).reversed());
         return new ResponseEntity<>(allReports, HttpStatus.OK);
     }
