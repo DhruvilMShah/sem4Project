@@ -2,9 +2,13 @@ package com.mtech.webapp.controllers;
 
 import com.mtech.webapp.models.User;
 import com.mtech.webapp.services.UserService;
-import org.springframework.http.ResponseEntity;
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 
 import java.util.List;
 import java.util.Optional;
@@ -18,7 +22,14 @@ public class UserController {
 
     // Endpoint to fetch email suggestions
     @GetMapping("/suggestions")
-    public List<String> getEmailSuggestions(@RequestParam String query) {
+    @Tag(name = "Email Suggestions")
+    @Operation(summary = "Get all email suggestions matching entered letters", description = "Retrieve a list of all matching user emails",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Successfully retrieved list of emails matching entered letters"),
+                    @ApiResponse(responseCode = "401", description = "Unauthorized"),
+                    @ApiResponse(responseCode = "500", description = "Error occurred while Processing Request at the Server Side")
+            })
+    public List<String> getEmailSuggestions(@RequestParam @Parameter(example = "abc") String query) {
         List<User> users = userService.findAll();
         System.out.println("All Emails are: " + users.size());
         List<String> emailsMatching = userService.findEmailsByQuery(query);

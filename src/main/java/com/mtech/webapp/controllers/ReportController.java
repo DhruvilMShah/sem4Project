@@ -6,6 +6,13 @@ import com.itextpdf.layout.element.Table;
 import com.mtech.webapp.models.*;
 import com.mtech.webapp.repositories.AchievementRepository;
 import com.mtech.webapp.repositories.ReportRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -44,8 +51,26 @@ public class ReportController {
 
     @PostMapping("/report/{userEmail}")
     @Async
+    @Tag(name = "Evaluation Report")
+    @Operation(summary = "Request evaluation report generation", description = "Starts report generation process by " +
+            "requesting for mapping capabilities to evaluation framework",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Evaluation Report Request Payload",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ReportRequest.class),
+                            examples = @ExampleObject(
+                                    value = "{ \"format\": \"ECDF\", \"fromDate\": \"2025-01-12\", \"toDate\": \"2025-03-12\" }"
+                            )
+                    )
+            ),
+            responses = {
+                    @ApiResponse(responseCode = "202", description = "Report generation process started successfully"),
+                    @ApiResponse(responseCode = "401", description = "Unauthorized"),
+                    @ApiResponse(responseCode = "500", description = "Error occurred while Processing Request at the Server Side")
+            })
     public CompletableFuture<ResponseEntity<String>>  createReportRequest(@RequestBody ReportRequest reportRequest,
-                                                      @PathVariable String userEmail)
+                                                      @PathVariable @Parameter(example = "abc@gmail.com")  String userEmail)
     {
         System.out.println("Creating report for " + userEmail + " of achievements between " + reportRequest.getFromDate()
                 + " and " + reportRequest.getToDate() + " for framework: " + reportRequest.getFormat());
@@ -70,6 +95,26 @@ public class ReportController {
     }
 
     @PostMapping("/reportFormat/{type}")
+    @Tag(name = "Evaluation Report")
+    @Operation(summary = "Create PDF report", description = "This callback API will create PDF report based on report content it gets in JSON",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Create Report Payload",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ReportContent.class),
+                            examples = @ExampleObject(
+                                    value = "{ \"email\": \"abc@gmail.com\", " +
+                                            " \"ratedAchievements\": [{\"achievement\": \"Developed a platform which has 800+ active users\"," +
+                                            "\"category\": \"Innovation\",\"rating\":\"4\"}" +
+                                            "]}"
+                            )
+                    )
+            ),
+            responses = {
+                    @ApiResponse(responseCode = "201", description = "Report created successfully"),
+                    @ApiResponse(responseCode = "401", description = "Unauthorized"),
+                    @ApiResponse(responseCode = "500", description = "Error occurred while Processing Request at the Server Side")
+            })
     public ResponseEntity<Report> createPDFOfReport(@RequestBody ReportContent reportJSON,
                                                     @PathVariable String type) throws Exception {
         // TODO update db with status - started
@@ -132,7 +177,14 @@ public class ReportController {
     }
 
     @GetMapping("/reports/{userEmail}")
-    public ResponseEntity<List<Report>> getReports(@PathVariable String userEmail)
+    @Tag(name = "Evaluation Report")
+    @Operation(summary = "Get all reports for given user", description = "Retrieve all reports requested by user",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Successfully retrieved all report requests"),
+                    @ApiResponse(responseCode = "401", description = "Unauthorized"),
+                    @ApiResponse(responseCode = "500", description = "Error occurred while Processing Request at the Server Side")
+            })
+    public ResponseEntity<List<Report>> getReports(@PathVariable @Parameter(example = "abc@gmail.com")  String userEmail)
     {
         List<Report> allReports = reportRepository.findByEmail(userEmail);
         allReports.sort(Comparator.comparing(Report::getRequestedDate).reversed());
@@ -140,7 +192,14 @@ public class ReportController {
     }
 
     @GetMapping("/files/{filename}")
-    public ResponseEntity<Resource> serveFile(@PathVariable String filename) throws IOException {
+    @Tag(name = "Evaluation Report")
+    @Operation(summary = "Get given PDF report", description = "Retrieves given report PDF file",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Successfully retrieved PDF report"),
+                    @ApiResponse(responseCode = "401", description = "Unauthorized"),
+                    @ApiResponse(responseCode = "500", description = "Error occurred while Processing Request at the Server Side")
+            })
+    public ResponseEntity<Resource> serveFile(@PathVariable @Parameter(example = "report.pdf")  String filename) throws IOException {
         Path filePath = Paths.get(REPORTS_DIR).resolve(filename).normalize();
         Resource resource = new UrlResource(filePath.toUri());
 
