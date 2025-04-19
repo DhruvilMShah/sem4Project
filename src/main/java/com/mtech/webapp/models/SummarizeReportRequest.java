@@ -9,6 +9,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class SummarizeReportRequest {
+    private String reportId;
     private String emailId;
     private List<String> achievementDesc;
     private String callBackUrl;

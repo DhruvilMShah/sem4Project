@@ -11,6 +11,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ReportContent {
+    private String reportId;
     private String email;
     private List<AchievementRating> ratedAchievements;
 }

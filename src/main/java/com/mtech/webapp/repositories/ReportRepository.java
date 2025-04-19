@@ -9,4 +9,5 @@ import java.util.List;
 
 public interface ReportRepository extends MongoRepository<Report,String> {
     List<Report> findByEmail(String email);
+    Report findByReportId(String reportId);
 }

@@ -39,6 +39,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 
@@ -86,8 +87,18 @@ public class ReportController {
                 .toList();
         String pythonApiUrl = "http://localhost:5000/achievements/summarize";
 
+        String reportId = UUID.randomUUID().toString();
+        // Create initial Report with IN_PROGRESS
+        Report report = new Report();
+        report.setReportId(reportId);
+        report.setEmail(userEmail);
+        report.setStatus(ReportStatus.IN_PROGRESS);
+        report.setRequestedDate(LocalDateTime.now());
+        reportRepository.save(report);
+
         // Add callback URL so Python API can send the response later
         SummarizeReportRequest request = new SummarizeReportRequest();
+        request.setReportId(reportId);
         request.setCallBackUrl("http://localhost:8081/reportFormat/"+reportRequest.getFormat());
         request.setType(reportRequest.getFormat());
         request.setEmailId(userEmail);
@@ -104,6 +115,10 @@ public class ReportController {
             // Handle case where Python server is down or unreachable
             System.err.println("Error communicating with Python server: " + e.getMessage());
             System.out.println("Creating report request for " + userEmail + " is NOT accepted.");
+            report.setEmail(userEmail);
+            report.setStatus(ReportStatus.FAILURE);
+            report.setCompletedDate(LocalDateTime.now());
+            reportRepository.save(report);
             // Return HTTP 503 Service Unavailable or another appropriate response
             return CompletableFuture.completedFuture(
                     ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
@@ -112,6 +127,10 @@ public class ReportController {
             // Handle other unexpected errors
             System.err.println("Unexpected error: " + e.getMessage());
             System.out.println("Creating report request for " + userEmail + " is NOT accepted.");
+            report.setEmail(userEmail);
+            report.setStatus(ReportStatus.FAILURE);
+            report.setCompletedDate(LocalDateTime.now());
+            reportRepository.save(report);
             return CompletableFuture.completedFuture(
                     ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                             .body("An unexpected error occurred."));
@@ -148,11 +167,6 @@ public class ReportController {
                 requestedTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")) + ".pdf";
         String reportFilePath = REPORTS_DIR + "/" + fileName;
 
-        report.setEmail(emailId);
-        report.setStatus(ReportStatus.IN_PROGRESS);
-        report.setRequestedDate(requestedTime);
-        report.setFilePath("http://localhost:8081/files/" + fileName);
-        report = reportRepository.save(report);
         System.out.println("Creating report for " + reportJSON.getEmail());
 
         // Parse JSON
@@ -190,8 +204,10 @@ public class ReportController {
         document.add(table);
         document.close();
 
+        report = reportRepository.findByReportId(reportJSON.getReportId());
         report.setStatus(ReportStatus.SUCCESSFUL);
         report.setCompletedDate(LocalDateTime.now());
+        report.setFilePath("http://localhost:8081/files/" + fileName);
         reportRepository.save(report);
         System.out.println("Successfully created report for " + emailId + " at: " + reportFilePath);
 
