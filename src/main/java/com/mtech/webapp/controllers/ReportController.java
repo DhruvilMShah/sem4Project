@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -34,6 +35,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -256,4 +259,24 @@ public class ReportController {
     private boolean isBetween(LocalDate fromDate, LocalDate startDate, LocalDate endDate) {
         return (fromDate.isEqual(startDate) || fromDate.isAfter(startDate)) && (fromDate.isEqual(endDate) || fromDate.isBefore(endDate));
     }
+
+    @Scheduled(fixedRate = 60000) // every 1 min
+    public void checkForStaleReports() {
+        // Calculate 1 minute ago
+        LocalDateTime thresholdTime = LocalDateTime.now().minusMinutes(1);
+
+        // Fetch all reports that are still IN_PROGRESS and were requested more than 15 minutes ago
+        List<Report> stuckReports = reportRepository.findByStatusAndRequestedDateBefore(
+                ReportStatus.IN_PROGRESS, thresholdTime
+        );
+
+        for (Report report : stuckReports) {
+            System.out.println("Marking requestId: " + report.getReportId() + " as failed due to no response from " +
+                    "report generation service");
+            report.setStatus(ReportStatus.FAILURE);
+            report.setCompletedDate(LocalDateTime.now());
+            reportRepository.save(report);
+        }
+    }
+
 }
