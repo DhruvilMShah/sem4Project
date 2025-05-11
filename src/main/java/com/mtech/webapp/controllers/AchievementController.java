@@ -3,16 +3,23 @@ package com.mtech.webapp.controllers;
 import com.mtech.webapp.exceptions.ResourceNotFoundException;
 import com.mtech.webapp.models.*;
 import com.mtech.webapp.repositories.AchievementRepository;
+import com.mtech.webapp.repositories.UserRepository;
+import com.mtech.webapp.security.JwtTokenUtil;
+import com.mtech.webapp.security.WebSecurityConfig;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -21,9 +28,14 @@ import java.util.Comparator;
 import java.util.List;
 
 @RestController
+@SecurityRequirement(name = "jwtAuth")
 public class AchievementController {
     @Autowired
     private AchievementRepository achievementRepository;
+    @Autowired
+    private UserRepository userRepository;
+
+    private static final Logger logger = LoggerFactory.getLogger(AchievementController.class);
 
     @PostMapping("/achievement")
     @Tag(name = "User Achievements")
@@ -47,7 +59,14 @@ public class AchievementController {
             })
     public ResponseEntity<Achievement> postAchievement(@RequestBody AchievementRequest achievementRequest)
     {
-        System.out.println("Adding achievement for : "+ achievementRequest.getEmail());
+        String userId = JwtTokenUtil.getUserIdFromAuthContext();
+        Role role = JwtTokenUtil.getRoleFromAuthContext();
+        String senderUserEmail = userRepository.findByUserId(userId).getEmail();
+        if (role.equals(Role.USER) && !senderUserEmail.equals(achievementRequest.getEmail())) {
+            throw new AccessDeniedException("You are not authorized to create this resource. You can only add achievement for Yourself");
+        }
+
+        logger.info("Adding achievement for : {}", achievementRequest.getEmail());
         Achievement achievement = new Achievement();
         achievement.setCategory(achievementRequest.getCategory());
         achievement.setEmail(achievementRequest.getEmail());
@@ -58,7 +77,7 @@ public class AchievementController {
         achievement.setFromDate(achievementRequest.getFromDate());
         achievement.setToDate(achievementRequest.getToDate());
         achievementRepository.save(achievement);
-        System.out.println("Successfully added achievement for : "+ achievementRequest.getEmail());
+        logger.info("Successfully added achievement for : {}",achievementRequest.getEmail());
         return new ResponseEntity<>(achievement, HttpStatus.CREATED);
     }
 
@@ -84,6 +103,13 @@ public class AchievementController {
             })
     public ResponseEntity<Achievement> updateAchievement(@RequestBody AchievementUpdateRequest achievementRequest)
     {
+        String userId = JwtTokenUtil.getUserIdFromAuthContext();
+        Role role = JwtTokenUtil.getRoleFromAuthContext();
+        String senderUserEmail = userRepository.findByUserId(userId).getEmail();
+        String achievementGivenByUserEmail = achievementRepository.findByAchievementId(achievementRequest.getAchievementId()).getEmail();
+        if (role.equals(Role.USER) && !senderUserEmail.equals(achievementGivenByUserEmail)) {
+            throw new AccessDeniedException("You are not authorized to update this resource. You can only update achievement for Yourself");
+        }
         Achievement existingAchievement = achievementRepository.findByAchievementId(achievementRequest.getAchievementId());
         if (existingAchievement == null) {
             throw new ResourceNotFoundException("No achievement exists for given achievement id: " + achievementRequest.getAchievementId());
@@ -119,9 +145,16 @@ public class AchievementController {
             })
     public ResponseEntity<Achievement> deleteAchievement(@RequestBody AchievementDeleteRequest achievementDeleteRequest)
     {
-        System.out.println("Deleting achievement id: "+ achievementDeleteRequest.getAchievementId());
+        String userId = JwtTokenUtil.getUserIdFromAuthContext();
+        Role role = JwtTokenUtil.getRoleFromAuthContext();
+        String senderUserEmail = userRepository.findByUserId(userId).getEmail();
+        String achievementGivenByUserEmail = achievementRepository.findByAchievementId(achievementDeleteRequest.getAchievementId()).getEmail();
+        if (role.equals(Role.USER) && !senderUserEmail.equals(achievementGivenByUserEmail)) {
+            throw new AccessDeniedException("You are not authorized to delete this resource. You can only delete achievement for Yourself");
+        }
+        logger.info("Deleting achievement id: {}", achievementDeleteRequest.getAchievementId());
         int noOfAchievementsDeleted = achievementRepository.deleteByAchievementId(achievementDeleteRequest.getAchievementId());
-        System.out.println("Successfully deleted achievement id: "+ achievementDeleteRequest.getAchievementId());
+        logger.info("Successfully deleted achievement id: {}", achievementDeleteRequest.getAchievementId());
         return new ResponseEntity<>(HttpStatus.ACCEPTED);
     }
 
@@ -135,7 +168,7 @@ public class AchievementController {
             })
     public ResponseEntity<List<Achievement>> getAchievements(@PathVariable @Parameter(example = "abc@gmail.com") String userEmail)
     {
-        System.out.println("Getting achievements of : "+ userEmail);
+        logger.debug("Getting achievements of : {}", userEmail);
         List<Achievement> allAchievementsOfUser = achievementRepository.findByEmail(userEmail);
         if (allAchievementsOfUser == null) {
             throw new ResourceNotFoundException("No achievement exists for given user email: " + userEmail);

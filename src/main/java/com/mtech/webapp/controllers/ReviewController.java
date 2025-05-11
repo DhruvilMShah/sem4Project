@@ -3,25 +3,36 @@ package com.mtech.webapp.controllers;
 import com.mtech.webapp.exceptions.ResourceNotFoundException;
 import com.mtech.webapp.models.*;
 import com.mtech.webapp.repositories.ReviewRepository;
+import com.mtech.webapp.repositories.UserRepository;
+import com.mtech.webapp.security.JwtTokenUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
 import java.util.List;
 
 @RestController
+@SecurityRequirement(name = "jwtAuth")
 public class ReviewController {
     @Autowired
     private ReviewRepository reviewRepository;
+    @Autowired
+    private UserRepository userRepository;
+    private static final Logger logger = LoggerFactory.getLogger(ReviewController.class);
 
     @PostMapping("/review")
     @Tag(name = "Platform Reviews")
@@ -43,14 +54,21 @@ public class ReviewController {
             })
     public ResponseEntity<Review> postReview(@RequestBody ReviewRequest reviewRequest)
     {
-        System.out.println("Adding new platform review");
+        String userId = JwtTokenUtil.getUserIdFromAuthContext();
+        Role role = JwtTokenUtil.getRoleFromAuthContext();
+        String senderUserEmail = userRepository.findByUserId(userId).getEmail();
+        if (role.equals(Role.USER) && !senderUserEmail.equals(reviewRequest.getEmail())) {
+            throw new AccessDeniedException("You are not authorized to add review on behalf of this user. You can only add review for Yourself");
+        }
+
+        logger.info("Adding new platform review");
         Review review = new Review();
         review.setAnonymity(reviewRequest.isAnonymity());
         review.setDescription(reviewRequest.getDescription());
         review.setRating(reviewRequest.getRating());
         review.setEmail(reviewRequest.getEmail());
         reviewRepository.save(review);
-        System.out.println("Successfully added platform review");
+        logger.info("Successfully added platform review");
         return new ResponseEntity<>(review, HttpStatus.CREATED);
     }
 
@@ -74,6 +92,14 @@ public class ReviewController {
             })
     public ResponseEntity<Review> updateReview(@RequestBody ReviewUpdateRequest reviewRequest)
     {
+        String userId = JwtTokenUtil.getUserIdFromAuthContext();
+        Role role = JwtTokenUtil.getRoleFromAuthContext();
+        String senderUserEmail = userRepository.findByUserId(userId).getEmail();
+        String reviewOfUserEmail = reviewRepository.findByReviewId(reviewRequest.getReviewId()).getEmail();
+        if (role.equals(Role.USER) && !senderUserEmail.equals(reviewOfUserEmail)) {
+            throw new AccessDeniedException("You are not authorized to update review on behalf of this user. You can only update review for Yourself");
+        }
+
         Review review = reviewRepository.findByReviewId(reviewRequest.getReviewId());
         if (review == null) {
             throw new ResourceNotFoundException("Review not found with id: " + reviewRequest.getReviewId());
@@ -105,6 +131,13 @@ public class ReviewController {
             })
     public ResponseEntity<Review> deleteReview(@RequestBody ReviewDeleteRequest reviewDeleteRequest)
     {
+        String userId = JwtTokenUtil.getUserIdFromAuthContext();
+        Role role = JwtTokenUtil.getRoleFromAuthContext();
+        String senderUserEmail = userRepository.findByUserId(userId).getEmail();
+        String reviewOfUserEmail = reviewRepository.findByReviewId(reviewDeleteRequest.getReviewId()).getEmail();
+        if (role.equals(Role.USER) && !senderUserEmail.equals(reviewOfUserEmail)) {
+            throw new AccessDeniedException("You are not authorized to delete review on behalf of this user. You can only delete review for Yourself");
+        }
         int noOfEntriesDeleted = reviewRepository.deleteByReviewId(reviewDeleteRequest.getReviewId());
         return new ResponseEntity<>(HttpStatus.ACCEPTED);
     }

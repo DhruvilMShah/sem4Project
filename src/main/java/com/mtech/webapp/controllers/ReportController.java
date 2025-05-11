@@ -5,58 +5,58 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itextpdf.layout.element.Table;
 import com.mtech.webapp.exceptions.ResourceNotFoundException;
 import com.mtech.webapp.models.*;
-import com.mtech.webapp.repositories.AchievementRepository;
 import com.mtech.webapp.repositories.ReportRepository;
+import com.mtech.webapp.repositories.UserRepository;
+import com.mtech.webapp.security.JwtTokenUtil;
+import com.mtech.webapp.services.ReportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
 import com.itextpdf.kernel.pdf.*;
 import com.itextpdf.layout.Document;
 import com.itextpdf.layout.element.Paragraph;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 
 @RestController
+@SecurityRequirement(name = "jwtAuth")
 public class ReportController {
     @Autowired
-    private AchievementRepository achievementRepository;
-    @Autowired
     private ReportRepository reportRepository;
-    private final RestTemplate restTemplate = new RestTemplate();
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private ReportService reportService;
     private final String REPORTS_DIR = "reports";
+    private static final Logger logger = LoggerFactory.getLogger(ReportController.class);
 
     @PostMapping("/report/{userEmail}")
-    @Async
     @Tag(name = "Evaluation Report")
     @Operation(summary = "Request evaluation report generation", description = "Starts report generation process by " +
             "requesting for mapping capabilities to evaluation framework",
@@ -75,69 +75,10 @@ public class ReportController {
                     @ApiResponse(responseCode = "401", description = "Unauthorized"),
                     @ApiResponse(responseCode = "500", description = "Error occurred while Processing Request at the Server Side")
             })
-    public CompletableFuture<ResponseEntity<String>>  createReportRequest(@RequestBody ReportRequest reportRequest,
+    public ResponseEntity<String>  createReportRequest(@RequestBody ReportRequest reportRequest,
                                                       @PathVariable @Parameter(example = "abc@gmail.com")  String userEmail)
     {
-        System.out.println("Creating report request for " + userEmail + " of achievements between " + reportRequest.getFromDate()
-                + " and " + reportRequest.getToDate() + " for framework: " + reportRequest.getFormat());
-        List<Achievement> userAchievements = achievementRepository.findByEmail(userEmail);
-        if (userAchievements == null) {
-            throw new ResourceNotFoundException("userAchievements not found with userEmail: " + userEmail);
-        }
-        List<String> achievementsBetweenDuration = userAchievements.stream()
-                .filter(achievement -> isBetween(achievement.getFromDate(), reportRequest.getFromDate(), reportRequest.getToDate()))
-                .map(Achievement::getDescription)
-                .toList();
-        String pythonApiUrl = "http://localhost:5000/achievements/summarize";
-
-        String reportId = UUID.randomUUID().toString();
-        // Create initial Report with IN_PROGRESS
-        Report report = new Report();
-        report.setReportId(reportId);
-        report.setEmail(userEmail);
-        report.setStatus(ReportStatus.IN_PROGRESS);
-        report.setRequestedDate(LocalDateTime.now());
-        reportRepository.save(report);
-
-        // Add callback URL so Python API can send the response later
-        SummarizeReportRequest request = new SummarizeReportRequest();
-        request.setReportId(reportId);
-        request.setCallBackUrl("http://localhost:8081/reportFormat/"+reportRequest.getFormat());
-        request.setType(reportRequest.getFormat());
-        request.setEmailId(userEmail);
-        request.setAchievementDesc(achievementsBetweenDuration);
-
-        try {
-            // Attempt to send request to Python server
-            restTemplate.postForEntity(pythonApiUrl, request, String.class);
-            System.out.println("Creating report request for " + userEmail + " is accepted.");
-            // Return HTTP 202 Accepted if successful
-            return CompletableFuture.completedFuture(
-                    ResponseEntity.accepted().body("Processing started"));
-        } catch (RestClientException e) {
-            // Handle case where Python server is down or unreachable
-            System.err.println("Error communicating with Python server: " + e.getMessage());
-            System.out.println("Creating report request for " + userEmail + " is NOT accepted.");
-            report.setEmail(userEmail);
-            report.setStatus(ReportStatus.FAILURE);
-            report.setCompletedDate(LocalDateTime.now());
-            reportRepository.save(report);
-            // Return HTTP 503 Service Unavailable or another appropriate response
-            return CompletableFuture.completedFuture(
-                    ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                            .body("Python server is currently unavailable. Please try again later."));
-        } catch (Exception e) {
-            // Handle other unexpected errors
-            System.err.println("Unexpected error: " + e.getMessage());
-            System.out.println("Creating report request for " + userEmail + " is NOT accepted.");
-            report.setEmail(userEmail);
-            report.setStatus(ReportStatus.FAILURE);
-            report.setCompletedDate(LocalDateTime.now());
-            reportRepository.save(report);
-            return CompletableFuture.completedFuture(
-                    ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                            .body("An unexpected error occurred."));
-        }
+        return reportService.createReportRequestAsync(reportRequest, userEmail);
     }
 
     @PostMapping("/reportFormat/{type}")
@@ -163,6 +104,7 @@ public class ReportController {
             })
     public ResponseEntity<Report> createPDFOfReport(@RequestBody ReportContent reportJSON,
                                                     @PathVariable String type) throws Exception {
+
         Report report = new Report();
         String emailId = reportJSON.getEmail();
         LocalDateTime requestedTime = LocalDateTime.now();
@@ -170,7 +112,7 @@ public class ReportController {
                 requestedTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")) + ".pdf";
         String reportFilePath = REPORTS_DIR + "/" + fileName;
 
-        System.out.println("Creating report for " + reportJSON.getEmail());
+        logger.info("Creating report for {}", reportJSON.getEmail());
 
         // Parse JSON
         ObjectMapper objectMapper = new ObjectMapper();
@@ -212,7 +154,7 @@ public class ReportController {
         report.setCompletedDate(LocalDateTime.now());
         report.setFilePath("http://localhost:8081/files/" + fileName);
         reportRepository.save(report);
-        System.out.println("Successfully created report for " + emailId + " at: " + reportFilePath);
+        logger.info("Successfully created report for {} at: {}",emailId, reportFilePath);
 
         return new ResponseEntity<>(HttpStatus.CREATED);
     }
@@ -227,6 +169,12 @@ public class ReportController {
             })
     public ResponseEntity<List<Report>> getReports(@PathVariable @Parameter(example = "abc@gmail.com")  String userEmail)
     {
+        String userId = JwtTokenUtil.getUserIdFromAuthContext();
+        Role role = JwtTokenUtil.getRoleFromAuthContext();
+        String senderUserEmail = userRepository.findByUserId(userId).getEmail();
+        if (role.equals(Role.USER) && !senderUserEmail.equals(userEmail)) {
+            throw new AccessDeniedException("You are not authorized to see reports of this user. You can only see reports for Yourself");
+        }
         List<Report> allReports = reportRepository.findByEmail(userEmail);
         if (allReports == null) {
             throw new ResourceNotFoundException("Reports not found for userEmail: " + userEmail);
@@ -271,8 +219,8 @@ public class ReportController {
         );
 
         for (Report report : stuckReports) {
-            System.out.println("Marking requestId: " + report.getReportId() + " as failed due to no response from " +
-                    "report generation service");
+            logger.warn("Marking requestId: {} as failed due to no response from report generation service"
+                    , report.getReportId());
             report.setStatus(ReportStatus.FAILURE);
             report.setCompletedDate(LocalDateTime.now());
             reportRepository.save(report);
